@@ -1,0 +1,22 @@
+# Core dependencies
+torch==1.13.1
+torchvision==0.14.1
+opencv-python==4.10.0.84
+numpy==1.26.4
+scipy==1.11.4
+
+# Training and evaluation
+tensorboard==2.15.1
+tqdm==4.66.1
+pillow==10.1.0
+
+# Optional backends
+onnxruntime==1.16.3
+
+# Data handling
+pyyaml==6.0.1
+
+# Existing project dependencies (maintain compatibility)
+# tensorflow-gpu==1.15.0  # For sign classifier - already installed
+# mediapipe==0.10.9  # For comparison - already installed
+# protobuf==3.20.3  # Already installed

@@ -1,0 +1,69 @@
+# Large model files and logs
+logs/
+logs_backup/
+inception/
+models/
+models_pytorch_gpu/
+models_tf2/*.h5
+models_tf2/*.json
+models_tf2/*.csv
+
+# Checkpoints and training state
+checkpoints/
+*.pth
+checkpoint_*
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv*/
+env/
+ENV/
+python27/
+python37/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.kiro/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# TensorFlow
+*.pb
+*.ckpt*
+checkpoint
+
+# Test results
+test_results/
+
+# Temporary files
+dataset_test_small/
+dataset_super_quick/
+zlibwapi_extracted/
+*.zip
+
+# Large datasets (excluded - can be downloaded online)
+dataset/
+datasets/
+videodataset/
+
+# Python installers
+*.msi
+*.exe
+
+# Hand landmark models
+hand_landmark_v2/checkpoints/
+hand_landmark_model/checkpoints/

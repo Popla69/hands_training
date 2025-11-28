@@ -1,0 +1,118 @@
+"""
+Configuration file for hand landmark detection model
+"""
+
+# Model architecture
+INPUT_SIZE = (224, 224)
+NUM_LANDMARKS = 21
+LANDMARK_DIM = 3  # x, y, z
+
+# Training hyperparameters
+BATCH_SIZE = 32
+LEARNING_RATE = 0.001
+NUM_EPOCHS = 100
+WEIGHT_DECAY = 1e-4
+
+# Loss weights
+LANDMARK_LOSS_WEIGHT = 1.0
+CONFIDENCE_LOSS_WEIGHT = 0.5
+
+# Data augmentation
+AUG_ROTATION_RANGE = 30  # degrees
+AUG_SCALE_RANGE = (0.8, 1.2)
+AUG_BRIGHTNESS_RANGE = (0.7, 1.3)
+AUG_CONTRAST_RANGE = (0.7, 1.3)
+AUG_FLIP_PROB = 0.5
+
+# Kalman filter parameters
+KALMAN_PROCESS_NOISE = 0.01
+KALMAN_MEASUREMENT_NOISE = 0.1
+
+# One Euro filter parameters
+ONE_EURO_MIN_CUTOFF = 1.0
+ONE_EURO_BETA = 0.007
+ONE_EURO_D_CUTOFF = 1.0
+
+# Inference
+CONFIDENCE_THRESHOLD = 0.5
+NMS_THRESHOLD = 0.3
+
+# Hand landmark indices (MediaPipe compatible)
+WRIST = 0
+THUMB_CMC = 1
+THUMB_MCP = 2
+THUMB_IP = 3
+THUMB_TIP = 4
+INDEX_FINGER_MCP = 5
+INDEX_FINGER_PIP = 6
+INDEX_FINGER_DIP = 7
+INDEX_FINGER_TIP = 8
+MIDDLE_FINGER_MCP = 9
+MIDDLE_FINGER_PIP = 10
+MIDDLE_FINGER_DIP = 11
+MIDDLE_FINGER_TIP = 12
+RING_FINGER_MCP = 13
+RING_FINGER_PIP = 14
+RING_FINGER_DIP = 15
+RING_FINGER_TIP = 16
+PINKY_MCP = 17
+PINKY_PIP = 18
+PINKY_DIP = 19
+PINKY_TIP = 20
+
+# Hand connections for visualization
+HAND_CONNECTIONS = [
+    # Thumb
+    (WRIST, THUMB_CMC),
+    (THUMB_CMC, THUMB_MCP),
+    (THUMB_MCP, THUMB_IP),
+    (THUMB_IP, THUMB_TIP),
+    # Index finger
+    (WRIST, INDEX_FINGER_MCP),
+    (INDEX_FINGER_MCP, INDEX_FINGER_PIP),
+    (INDEX_FINGER_PIP, INDEX_FINGER_DIP),
+    (INDEX_FINGER_DIP, INDEX_FINGER_TIP),
+    # Middle finger
+    (WRIST, MIDDLE_FINGER_MCP),
+    (MIDDLE_FINGER_MCP, MIDDLE_FINGER_PIP),
+    (MIDDLE_FINGER_PIP, MIDDLE_FINGER_DIP),
+    (MIDDLE_FINGER_DIP, MIDDLE_FINGER_TIP),
+    # Ring finger
+    (WRIST, RING_FINGER_MCP),
+    (RING_FINGER_MCP, RING_FINGER_PIP),
+    (RING_FINGER_PIP, RING_FINGER_DIP),
+    (RING_FINGER_DIP, RING_FINGER_TIP),
+    # Pinky
+    (WRIST, PINKY_MCP),
+    (PINKY_MCP, PINKY_PIP),
+    (PINKY_PIP, PINKY_DIP),
+    (PINKY_DIP, PINKY_TIP),
+    # Palm
+    (INDEX_FINGER_MCP, MIDDLE_FINGER_MCP),
+    (MIDDLE_FINGER_MCP, RING_FINGER_MCP),
+    (RING_FINGER_MCP, PINKY_MCP),
+]
+
+# Finger groups for color coding
+FINGER_GROUPS = {
+    'thumb': [THUMB_CMC, THUMB_MCP, THUMB_IP, THUMB_TIP],
+    'index': [INDEX_FINGER_MCP, INDEX_FINGER_PIP, INDEX_FINGER_DIP, INDEX_FINGER_TIP],
+    'middle': [MIDDLE_FINGER_MCP, MIDDLE_FINGER_PIP, MIDDLE_FINGER_DIP, MIDDLE_FINGER_TIP],
+    'ring': [RING_FINGER_MCP, RING_FINGER_PIP, RING_FINGER_DIP, RING_FINGER_TIP],
+    'pinky': [PINKY_MCP, PINKY_PIP, PINKY_DIP, PINKY_TIP],
+    'wrist': [WRIST],
+}
+
+# Colors for visualization (BGR format)
+FINGER_COLORS = {
+    'thumb': (0, 0, 255),      # Red
+    'index': (255, 0, 0),      # Blue
+    'middle': (0, 255, 0),     # Green
+    'ring': (0, 255, 255),     # Yellow
+    'pinky': (255, 0, 255),    # Magenta
+    'wrist': (255, 255, 255),  # White
+}
+
+# ImageNet normalization
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
