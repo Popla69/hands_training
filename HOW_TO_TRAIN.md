@@ -1,15 +1,13 @@
-# How to Train the Model to 95%+ Accuracy
+# 🎓 How to Train Your Own Model (Simple Guide)
 
-## Important Note
+Want to teach the computer to recognize YOUR hand gestures? Here's how!
 
-**I cannot train the model for you** because:
-- Training requires downloading large datasets (10-50GB)
-- Training takes 12-24 hours on GPU
-- I don't have access to execute long-running processes
+## ⏱️ Time Needed
+- **Quick Test**: 30 minutes (low accuracy, just for learning)
+- **Real Training**: 1-2 days (high accuracy, production ready)
+- **No Training**: 0 minutes (use pre-built MediaPipe)
 
-**But I've prepared everything you need to train it yourself!**
-
-## Quick Start (3 Options)
+## 🎯 Choose Your Path
 
 ### Option 1: Test Pipeline with Synthetic Data (5 minutes)
 
