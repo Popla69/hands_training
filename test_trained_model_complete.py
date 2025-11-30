@@ -138,7 +138,7 @@ for label, count in pred_counts.most_common(5):
 results_file = 'test_results/trained_model_results.txt'
 os.makedirs('test_results', exist_ok=True)
 
-with open(results_file, 'w') as f:
+with open(results_file, 'w', encoding='utf-8') as f:
     f.write("="*70 + "\n")
     f.write("TRAINED MODEL TEST RESULTS\n")
     f.write("="*70 + "\n")
@@ -150,8 +150,8 @@ with open(results_file, 'w') as f:
         f.write(f"\n{r['image']}\n")
         f.write(f"  Predicted: {r['predicted']} ({r['confidence']:.2%})\n")
         if r['true_label']:
-            status = "✓" if r['predicted'] == r['true_label'] else "✗"
-            f.write(f"  True label: {r['true_label']} {status}\n")
+            status = "CORRECT" if r['predicted'] == r['true_label'] else "WRONG"
+            f.write(f"  True label: {r['true_label']} [{status}]\n")
         f.write(f"  Top 3:\n")
         for i, (lbl, conf) in enumerate(r['top_3'], 1):
             f.write(f"    {i}. {lbl}: {conf:.2%}\n")

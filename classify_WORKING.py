@@ -68,27 +68,27 @@ def predict_sign(image_data):
 
 class Smoother:
     def __init__(self):
-        self.buffer = deque(maxlen=10)
+        self.buffer = deque(maxlen=8)  # Smaller buffer for faster response
     
     def add(self, label, conf):
         if conf > 0.20:
             self.buffer.append((label, conf))
     
     def get_stable(self):
-        if len(self.buffer) < 6:
+        if len(self.buffer) < 5:  # Need 5 frames
             return None, 0.0
         
         labels = [p[0] for p in self.buffer]
         counter = Counter(labels)
         top_label, count = counter.most_common(1)[0]
         
-        if count < 4:
+        if count < 3:  # Need 3/8 agreement
             return None, 0.0
         
         confs = [p[1] for p in self.buffer if p[0] == top_label]
         avg_conf = np.mean(confs)
         
-        if avg_conf < 0.35:
+        if avg_conf < 0.30:  # Lower threshold
             return None, avg_conf
         
         return top_label, avg_conf
@@ -110,9 +110,10 @@ if not cap.isOpened():
     print("ERROR: Cannot open camera!")
     exit(1)
 
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
 cap.set(cv2.CAP_PROP_FPS, 30)
+cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
 print("✓ Camera started!")
 
@@ -171,15 +172,15 @@ while True:
     
     hand_img = frame[y1:y2, x1:x2]
     
-    # Predict if model is loaded
-    if model_loaded and frame_count % 2 == 0:
+    # Predict if model is loaded (every 3 frames for better FPS)
+    if model_loaded and frame_count % 3 == 0:
         try:
             if not first_prediction_done:
                 print("  Making first prediction (this will be slow)...")
             
             hand_resized = cv2.resize(hand_img, (299, 299))
             image_data = cv2.imencode('.jpg', hand_resized, 
-                                     [cv2.IMWRITE_JPEG_QUALITY, 85])[1].tobytes()
+                                     [cv2.IMWRITE_JPEG_QUALITY, 75])[1].tobytes()
             
             top_5 = predict_sign(image_data)
             

@@ -1,6 +1,6 @@
 """
-Final webcam classifier with background removal
-Isolates hand from background to match training data
+Clean webcam classifier - No MediaPipe, just simple frame capture
+Captures 5 frames per second and analyzes them
 """
 
 import sys
@@ -15,42 +15,33 @@ import tensorflow.compat.v1 as tf_v1
 tf_v1.disable_v2_behavior()
 
 
-def remove_background(roi):
+def detect_hand_in_roi(roi):
     """
-    Remove background and isolate hand using skin detection
-    Returns hand on white background (like training images)
+    Detect if there's a hand in the ROI using skin detection
+    Returns True if hand detected, False otherwise
     """
-    # Convert to HSV
+    # Convert to HSV for skin detection
     hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
     
-    # Skin color range (wider range for better detection)
+    # Skin color range in HSV
     lower_skin = np.array([0, 20, 70], dtype=np.uint8)
     upper_skin = np.array([20, 255, 255], dtype=np.uint8)
     
     # Create mask
     mask = cv2.inRange(hsv, lower_skin, upper_skin)
     
-    # Clean up mask
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+    # Apply morphological operations to remove noise
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     
-    # Blur mask edges for smoother result
-    mask = cv2.GaussianBlur(mask, (5, 5), 0)
-    
-    # Create white background
-    white_bg = np.ones_like(roi) * 255
-    
-    # Blend hand with white background
-    mask_3channel = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR) / 255.0
-    result = (roi * mask_3channel + white_bg * (1 - mask_3channel)).astype(np.uint8)
-    
-    # Calculate skin percentage
+    # Calculate percentage of skin pixels
     skin_pixels = cv2.countNonZero(mask)
-    total_pixels = mask.shape[0] * mask.shape[1]
+    total_pixels = roi.shape[0] * roi.shape[1]
     skin_percentage = (skin_pixels / total_pixels) * 100
     
-    return result, skin_percentage, mask
+    # Hand detected if at least 15% of ROI is skin
+    return skin_percentage >= 15, skin_percentage, mask
 
 
 def predict_sign(image_data, sess, softmax_tensor, label_lines):
@@ -67,7 +58,7 @@ def predict_sign(image_data, sess, softmax_tensor, label_lines):
 
 def main():
     print("="*70)
-    print("FINAL WEBCAM CLASSIFIER - Background Removal")
+    print("CLEAN WEBCAM CLASSIFIER")
     print("="*70)
     print("\nLoading model...")
     
@@ -92,13 +83,8 @@ def main():
     print("\nHow to use:")
     print("  1. Position your hand in the GREEN BOX")
     print("  2. Make a sign and hold it steady")
-    print("  3. Press SPACE to capture (3 frames)")
-    print("  4. Background removed & system votes on best match")
-    print("\nTips for better accuracy:")
-    print("  - Use good lighting")
-    print("  - Keep hand fully in the box")
-    print("  - Match the training images orientation")
-    print("  - Hold steady during capture")
+    print("  3. Press SPACE to capture and add to sequence")
+    print("  4. System captures 5 frames and votes on the sign")
     print("\nControls:")
     print("  - SPACE: Capture sign")
     print("  - C: Clear sequence")
@@ -129,8 +115,8 @@ def main():
         capture_frames = []
         capture_start_time = None
         
-        # ROI - larger box for better hand capture
-        roi_size = 450
+        # ROI (Region of Interest) - centered box
+        roi_size = 400
         
         # Stats
         total_captured = 0
@@ -139,11 +125,10 @@ def main():
         fps_list = []
         prev_time = time.time()
         
-        # Live prediction
+        # Live prediction (not for capture, just display)
         last_prediction = None
         last_confidence = 0.0
         last_pred_time = time.time()
-        last_top5 = []
         
         while True:
             ret, frame = cap.read()
@@ -166,59 +151,65 @@ def main():
             avg_fps = sum(fps_list) / len(fps_list)
             prev_time = current_time
             
-            # Extract ROI
+            # Extract ROI (ONLY content inside the box)
             roi = frame[roi_y:roi_y+roi_size, roi_x:roi_x+roi_size].copy()
             
-            # Quick skin detection (fast)
-            hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-            lower_skin = np.array([0, 20, 70], dtype=np.uint8)
-            upper_skin = np.array([20, 255, 255], dtype=np.uint8)
-            mask = cv2.inRange(hsv, lower_skin, upper_skin)
-            skin_pixels = cv2.countNonZero(mask)
-            total_pixels = mask.shape[0] * mask.shape[1]
-            skin_pct = (skin_pixels / total_pixels) * 100
-            hand_detected = skin_pct >= 15
+            # Detect hand in ROI
+            hand_detected, skin_pct, skin_mask = detect_hand_in_roi(roi)
             
-            # Only do background removal for preview (not every frame)
-            if current_time - last_pred_time > 1.0:
-                roi_clean, _, _ = remove_background(roi)
-            elif 'roi_clean' not in locals():
-                roi_clean = roi.copy()
+            # Live prediction (every 0.5 seconds, just for display, ONLY if hand detected)
+            if current_time - last_pred_time > 0.5 and not capturing:
+                if hand_detected:
+                    try:
+                        # Preprocess ROI
+                        roi_resized = cv2.resize(roi, (299, 299))
+                        
+                        # Predict
+                        image_data = cv2.imencode('.jpg', roi_resized, 
+                                                 [cv2.IMWRITE_JPEG_QUALITY, 95])[1].tobytes()
+                        predictions = predict_sign(image_data, sess, softmax_tensor, label_lines)
+                        
+                        last_prediction = predictions[0][0]
+                        last_confidence = predictions[0][1]
+                        last_pred_time = current_time
+                    except:
+                        pass
+                else:
+                    # No hand detected
+                    last_prediction = None
+                    last_confidence = 0.0
+                    last_pred_time = current_time
             
-            # Capture mode - capture 3 frames quickly
+            # Capture mode
             if capturing:
+                elapsed = current_time - capture_start_time
+                
+                # Check if hand is still in ROI
                 if not hand_detected:
-                    print("  ✗ Hand lost!")
+                    print("  ✗ Hand lost! Capture cancelled.")
                     capturing = False
                     capture_frames = []
                 else:
-                    # Capture 3 frames immediately
-                    if len(capture_frames) < 3:
-                        try:
-                            # Remove background
-                            roi_processed, _, _ = remove_background(roi)
-                            
-                            # Resize and preprocess
-                            roi_resized = cv2.resize(roi_processed, (299, 299))
-                            
-                            # Apply histogram equalization
-                            yuv = cv2.cvtColor(roi_resized, cv2.COLOR_BGR2YUV)
-                            yuv[:,:,0] = cv2.equalizeHist(yuv[:,:,0])
-                            roi_resized = cv2.cvtColor(yuv, cv2.COLOR_YUV2BGR)
-                            
-                            # Predict
-                            image_data = cv2.imencode('.jpg', roi_resized, 
-                                                     [cv2.IMWRITE_JPEG_QUALITY, 95])[1].tobytes()
-                            predictions = predict_sign(image_data, sess, softmax_tensor, label_lines)
-                            
-                            capture_frames.append(predictions[0])
-                            print(f"  Frame {len(capture_frames)}/3: {predictions[0][0].upper()} ({predictions[0][1]*100:.1f}%)")
-                        except Exception as e:
-                            print(f"  Error: {e}")
-                    
+                    # Capture 5 frames over 1 second (0.2 second intervals)
+                    if len(capture_frames) < 5:
+                        if len(capture_frames) == 0 or elapsed >= len(capture_frames) * 0.2:
+                            try:
+                                # Preprocess ROI (ONLY the box content)
+                                roi_resized = cv2.resize(roi, (299, 299))
+                                
+                                # Predict
+                                image_data = cv2.imencode('.jpg', roi_resized, 
+                                                         [cv2.IMWRITE_JPEG_QUALITY, 95])[1].tobytes()
+                                predictions = predict_sign(image_data, sess, softmax_tensor, label_lines)
+                                
+                                capture_frames.append(predictions[0])
+                                print(f"  Frame {len(capture_frames)}/5: {predictions[0][0].upper()} ({predictions[0][1]*100:.1f}%)")
+                            except Exception as e:
+                                print(f"  Error capturing frame: {e}")
+                
                     # Done capturing
-                    if len(capture_frames) >= 3:
-                        # Vote
+                    if len(capture_frames) >= 5:
+                        # Vote on the sign
                         pred_labels = [p[0] for p in capture_frames]
                         pred_counter = Counter(pred_labels)
                         
@@ -226,13 +217,13 @@ def main():
                         final_pred = most_common[0]
                         vote_count = most_common[1]
                         
-                        # Average confidence
+                        # Average confidence for the winning prediction
                         winning_confs = [p[1] for p in capture_frames if p[0] == final_pred]
                         avg_conf = np.mean(winning_confs)
                         
-                        # Require 2/3 votes and 20% confidence
-                        if vote_count >= 2 and avg_conf >= 0.20:
-                            print(f"\n✓ Result: {final_pred.upper()} ({vote_count}/3 votes, {avg_conf*100:.1f}% conf)")
+                        # Require at least 3/5 votes and minimum confidence
+                        if vote_count >= 3 and avg_conf >= 0.3:
+                            print(f"\n✓ Result: {final_pred.upper()} ({vote_count}/5 votes, {avg_conf*100:.1f}% confidence)")
                             
                             # Add to sequence
                             if final_pred == 'space':
@@ -249,81 +240,85 @@ def main():
                             
                             total_captured += 1
                         else:
-                            print(f"\n✗ Rejected: {final_pred.upper()} (only {vote_count}/3 votes or low conf)")
+                            print(f"\n✗ Rejected: {final_pred.upper()} (only {vote_count}/5 votes or low confidence)")
                         
                         # Reset
                         capturing = False
                         capture_frames = []
+                        last_pred_time = 0  # Force immediate live prediction update
             
-            # Draw ROI box
+            # Draw ROI box with hand detection status
             if capturing:
-                box_color = (0, 255, 255)  # Yellow
+                box_color = (0, 255, 255)  # Yellow when capturing
                 box_thickness = 5
             elif hand_detected:
-                box_color = (0, 255, 0)  # Green
+                box_color = (0, 255, 0)  # Green when hand detected
                 box_thickness = 3
             else:
-                box_color = (0, 0, 255)  # Red
+                box_color = (0, 0, 255)  # Red when no hand
                 box_thickness = 3
             
             cv2.rectangle(frame, (roi_x, roi_y), 
                          (roi_x + roi_size, roi_y + roi_size), 
                          box_color, box_thickness)
             
-            # Show ROI preview (top-right) - just the box content
-            preview_size = 200
-            preview = cv2.resize(roi, (preview_size, preview_size))
-            frame[10:10+preview_size, w-preview_size-10:w-10] = preview
-            
-            # Preview label
-            cv2.putText(frame, "ROI", (w-preview_size-10, preview_size+30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            # Show skin detection mask in corner
+            if skin_mask is not None:
+                mask_small = cv2.resize(skin_mask, (150, 150))
+                mask_colored = cv2.cvtColor(mask_small, cv2.COLOR_GRAY2BGR)
+                frame[10:160, w-160:w-10] = mask_colored
             
             # Info overlay
             overlay = frame.copy()
-            cv2.rectangle(overlay, (0, 0), (650, 350), (0, 0, 0), -1)
+            cv2.rectangle(overlay, (0, 0), (600, 290), (0, 0, 0), -1)
             cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
             
             # FPS
             cv2.putText(frame, f"FPS: {avg_fps:.1f}", (10, 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             
-            # Hand detection
+            # Camera info
+            cv2.putText(frame, "Camera: VideoCapture(1)", (10, 60), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (150, 150, 150), 2)
+            
+            # Hand detection status
             if hand_detected:
-                hand_text = f"Hand: YES ({skin_pct:.1f}%)"
+                hand_status = f"Hand: YES ({skin_pct:.1f}% skin)"
                 hand_color = (0, 255, 0)
             else:
-                hand_text = f"Hand: NO ({skin_pct:.1f}%)"
+                hand_status = f"Hand: NO ({skin_pct:.1f}% skin)"
                 hand_color = (0, 0, 255)
             
-            cv2.putText(frame, hand_text, (10, 70), 
+            cv2.putText(frame, hand_status, (10, 100), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, hand_color, 2)
             
             # Status
             if capturing:
-                status = f"CAPTURING... {len(capture_frames)}/3"
+                status_text = f"CAPTURING... {len(capture_frames)}/5 frames"
                 status_color = (0, 255, 255)
             elif hand_detected:
-                status = "Ready - Press SPACE"
+                status_text = "Ready - Press SPACE to capture"
                 status_color = (0, 255, 0)
             else:
-                status = "Show hand in box"
+                status_text = "Show hand in box"
                 status_color = (0, 0, 255)
             
-            cv2.putText(frame, status, (10, 110), 
+            cv2.putText(frame, status_text, (10, 140), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, status_color, 2)
             
-            # Instructions (no live prediction to save FPS)
-            if not capturing:
-                cv2.putText(frame, "Press SPACE to capture and predict", (10, 160), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2)
+            # Live prediction (when not capturing and hand detected)
+            if not capturing and hand_detected and last_prediction:
+                cv2.putText(frame, f"Live: {last_prediction.upper()}", (10, 180), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
+                cv2.putText(frame, f"Conf: {last_confidence*100:.1f}%", (10, 215), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 2)
             
             # Instructions
-            cv2.putText(frame, "SPACE=Capture | C=Clear | ESC=Exit", (10, h-20), 
+            cv2.putText(frame, "SPACE=Capture | C=Clear | ESC=Exit", (10, 260), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (100, 200, 255), 2)
             
             # Stats
-            cv2.putText(frame, f"Captured: {total_captured}", (w-200, h-20), 
+            cv2.putText(frame, f"Captured: {total_captured}", (10, h-20), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (100, 200, 255), 2)
             
             cv2.imshow('Sign Language Classifier', frame)
@@ -371,7 +366,7 @@ def main():
                         capture_frames = []
                         capture_start_time = current_time
                     else:
-                        print("\n✗ No hand detected!")
+                        print("\n✗ No hand detected! Show your hand in the box first.")
             elif key == ord('c') or key == ord('C'):
                 sequence = ''
                 print("\n✓ Sequence cleared")
